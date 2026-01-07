@@ -2969,6 +2969,52 @@ class RunManager(object):
         name_item.parent().removeRow(name_item.row())
         self.globals_changed()
 
+    def set_group_active(self, globals_file, group_name, active=True):
+        """Set a group as active or inactive programmatically.
+        
+        Args:
+            globals_file (str): Path to the globals file containing the group
+            group_name (str): Name of the group to activate/deactivate
+            active (bool): True to activate, False to deactivate. Default is True.
+        
+        Raises:
+            LookupError: If the group is not found in the model
+        """
+        try:
+            active_item = self.get_group_item_by_name(globals_file, group_name, self.GROUPS_COL_ACTIVE)
+            check_state = QtCore.Qt.Checked if active else QtCore.Qt.Unchecked
+            active_item.setCheckState(check_state)
+        except LookupError:
+            raise LookupError(
+                f"Group '{group_name}' not found in file '{globals_file}'. "
+                "Make sure the file is open and the group exists."
+            )
+
+    def set_groups_active(self, groups_dict):
+        """Set multiple groups as active or inactive programmatically.
+        
+        Args:
+            groups_dict (dict): Dictionary mapping (globals_file, group_name) tuples 
+                to boolean active states. For example:
+                {
+                    ('/path/to/file1.h5', 'group1'): True,
+                    ('/path/to/file1.h5', 'group2'): False,
+                    ('/path/to/file2.h5', 'group3'): True
+                }
+        
+        Returns:
+            dict: Dictionary of any errors encountered, mapping 
+                (globals_file, group_name) to error messages.
+                Empty dict if all succeeded.
+        """
+        errors = {}
+        for (globals_file, group_name), active in groups_dict.items():
+            try:
+                self.set_group_active(globals_file, group_name, active)
+            except Exception as e:
+                errors[(globals_file, group_name)] = str(e)
+        return errors
+
     def on_save_configuration_triggered(self):
         if self.last_save_config_file is None:
             self.on_save_configuration_as_triggered()
@@ -3636,11 +3682,85 @@ class RemoteServer(ZMQServer):
     def handle_set_shuffle(self, value):
         app.ui.pushButton_shuffle.setChecked(value)
 
+    @inmain_decorator()
+    def handle_set_group_active(self, globals_file, group_name, active=True):
+        """Set a group as active or inactive remotely.
+        
+        Args:
+            globals_file (str): Path to the globals file containing the group
+            group_name (str): Name of the group to activate/deactivate
+            active (bool): True to activate, False to deactivate. Default is True.
+        
+        Returns:
+            bool: True if successful
+        
+        Raises:
+            LookupError: If the group is not found
+        """
+        app.set_group_active(globals_file, group_name, active)
+        return True
+
+    @inmain_decorator()
+    def handle_set_groups_active(self, groups_dict):
+        """Set multiple groups as active or inactive remotely.
+        
+        Args:
+            groups_dict (dict): Dictionary mapping (globals_file, group_name) tuples 
+                to boolean active states. For example:
+                {
+                    ('/path/to/file1.h5', 'group1'): True,
+                    ('/path/to/file1.h5', 'group2'): False,
+                }
+        
+        Returns:
+            dict: Dictionary of any errors encountered, mapping 
+                (globals_file, group_name) to error messages.
+                Empty dict if all succeeded.
+        """
+        return app.set_groups_active(groups_dict)
+
+    @inmain_decorator()
+    def handle_get_active_groups(self):
+        """Get the currently active groups.
+        
+        Returns:
+            dict: Dictionary mapping group names to file paths, e.g.
+                {'group1': '/path/to/file1.h5', 'group2': '/path/to/file2.h5'}
+        """
+        return app.get_active_groups(interactive=False)
+
     def handle_n_shots(self):
         # Wait until any current preparsing is done, to ensure this is not racy w.r.t
         # previous remote calls:
         app.wait_until_preparse_complete()
         return app.n_shots
+
+    def handle_get_shots(self):
+        """Get all prospective shots as a list of dictionaries, each containing
+        the values of each variable for that shot"""
+        # Wait until any current preparsing is done, to ensure this is not racy w.r.t
+        # previous remote calls:
+        app.wait_until_preparse_complete()
+        active_groups = inmain(app.get_active_groups, interactive=False)
+        
+        # Get expansion order configuration including shuffle state
+        @inmain_decorator()
+        def get_expansion_order():
+            expansion_order = {}
+            for i in range(app.axes_model.rowCount()):
+                item = app.axes_model.item(i, app.AXES_COL_NAME)
+                shuffle_item = app.axes_model.item(i, app.AXES_COL_SHUFFLE)
+                name = item.data(app.AXES_ROLE_NAME)
+                expansion_order[name] = {'order': i, 'shuffle': shuffle_item.checkState()}
+            return expansion_order
+        
+        expansion_order = get_expansion_order()
+        sequence_globals = runmanager.get_globals(active_groups)
+        evaled_globals, _, _ = runmanager.evaluate_globals(
+            sequence_globals, raise_exceptions=False
+        )
+        shots = runmanager.expand_globals(sequence_globals, evaled_globals, expansion_order)
+        return shots
 
     @inmain_decorator()
     def handle_get_labscript_file(self):
@@ -3692,7 +3812,7 @@ class RemoteServer(ZMQServer):
         except Exception as e:
             msg = traceback.format_exc()
             msg = "Runmanager server returned an exception:\n" + msg
-            return e.__class__(msg)
+            raise RuntimeError(msg) from e
 
 
 if __name__ == "__main__":

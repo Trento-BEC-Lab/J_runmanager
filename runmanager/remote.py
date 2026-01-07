@@ -81,9 +81,57 @@ class Client(ZMQClient):
         """Set boolean state of 'Shuffle' checkbox"""
         return self.request('set_shuffle', value)
 
+    def set_group_active(self, globals_file, group_name, active=True):
+        """Set a group as active or inactive.
+        
+        Args:
+            globals_file (str): Path to the globals file containing the group
+            group_name (str): Name of the group to activate/deactivate
+            active (bool): True to activate, False to deactivate. Default is True.
+        
+        Returns:
+            bool: True if successful
+        
+        Raises:
+            LookupError: If the group is not found
+        """
+        return self.request('set_group_active', globals_file, group_name, active)
+
+    def set_groups_active(self, groups_dict):
+        """Set multiple groups as active or inactive.
+        
+        Args:
+            groups_dict (dict): Dictionary mapping (globals_file, group_name) tuples 
+                to boolean active states. For example:
+                {
+                    ('/path/to/file1.h5', 'group1'): True,
+                    ('/path/to/file1.h5', 'group2'): False,
+                }
+        
+        Returns:
+            dict: Dictionary of any errors encountered, mapping 
+                (globals_file, group_name) to error messages.
+                Empty dict if all succeeded.
+        """
+        return self.request('set_groups_active', groups_dict)
+
+    def get_active_groups(self):
+        """Get the currently active groups.
+        
+        Returns:
+            dict: Dictionary mapping group names to file paths, e.g.
+                {'group1': '/path/to/file1.h5', 'group2': '/path/to/file2.h5'}
+        """
+        return self.request('get_active_groups')
+
     def n_shots(self):
         """Get the number of prospective shots from pressing 'Engage'"""
         return self.request('n_shots')
+
+    def get_shots(self):
+        """Get all prospective shots as a list of dictionaries, each containing
+        the values of each variable for that shot"""
+        return self.request('get_shots')
 
     def get_labscript_file(self):
         """Get the path of the current experiment script"""
@@ -130,7 +178,11 @@ get_view_shots = _default_client.get_view_shots
 set_view_shots = _default_client.set_view_shots
 get_shuffle = _default_client.get_shuffle
 set_shuffle = _default_client.set_shuffle
+set_group_active = _default_client.set_group_active
+set_groups_active = _default_client.set_groups_active
+get_active_groups = _default_client.get_active_groups
 n_shots = _default_client.n_shots
+get_shots = _default_client.get_shots
 get_labscript_file = _default_client.get_labscript_file
 set_labscript_file = _default_client.set_labscript_file
 get_shot_output_folder = _default_client.get_shot_output_folder
