@@ -160,3 +160,12 @@ docs/html/
 docs/source/_build/
 docs/source/components.rst
 docs/source/api/_autosummary/
+# Shared launcher/environment tasks and dependency snapshots
+!/.vscode/
+/.vscode/*
+!/.vscode/tasks.json
+!/env/
+/env/*
+!/env/README.md
+!/env/conda-linux-64.lock
+!/env/pip-requirements.txt

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/local/bin/micromamba run \
+    -p "$HOME/.local/share/mamba/envs/labscript_test_v1" \
+    runmanager "$@"

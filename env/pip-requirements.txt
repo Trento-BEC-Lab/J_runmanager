@@ -1,0 +1,2 @@
+# Pip dependencies only; editable projects are excluded.
+zerorpc==0.6.3

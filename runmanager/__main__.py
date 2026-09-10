@@ -1400,8 +1400,8 @@ class RunManager(object):
         # to labscriptlib:
         self.last_opened_labscript_folder = self.exp_config.get('paths', 'labscriptlib')
         # The last location from which a globals file was selected, defaults
-        # to experiment_shot_storage:
-        self.last_opened_globals_folder = self.exp_config.get('paths', 'experiment_shot_storage')
+        # to the configured globals_folder:
+        self.last_opened_globals_folder = self.exp_config.get('paths', 'globals_folder')
         # The last file to which the user saved or loaded a configuration:
         self.last_save_config_file = None
         # The last manually selected shot output folder, defaults to
@@ -1496,6 +1496,7 @@ class RunManager(object):
                                   "ports": ['BLACS', 'runviewer'],
                                   "paths": ["shared_drive",
                                             "experiment_shot_storage",
+                                            "globals_folder",
                                             "labscriptlib",
                                             ],
                                   }
