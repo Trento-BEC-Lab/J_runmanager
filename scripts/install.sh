@@ -25,10 +25,10 @@ Name=JRunmanager
 Comment=Launch editable runmanager in labscript_test_v1
 Exec="$COMMAND"
 Icon=$REPO_DIR/runmanager/runmanager.svg
-Terminal=true
+Terminal=false
 Categories=Science;Development;
 StartupNotify=true
-StartupWMClass=runmanager-labscript_test_v1
+StartupWMClass=runmanager
 EOF
 
 if command -v desktop-file-validate >/dev/null 2>&1; then

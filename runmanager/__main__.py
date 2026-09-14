@@ -37,6 +37,7 @@ import pprint
 import traceback
 import signal
 from pathlib import Path
+import numpy as np
 
 splash.update_text('importing matplotlib')
 # Evaluation of globals happens in a thread with the pylab module imported.
@@ -3563,10 +3564,16 @@ class RunManager(object):
 
 class RemoteServer(ZMQServer):
     def __init__(self):
+        host = app.exp_config.get(
+            'servers', 'runmanager', fallback='localhost'
+        )
         port = app.exp_config.getint(
             'ports', 'runmanager', fallback=runmanager.remote.DEFAULT_PORT
         )
-        ZMQServer.__init__(self, port=port)
+        # ZMQServer expects a complete ZeroMQ bind address, while the labconfig
+        # stores the host/IP separately from the port.
+        bind_address = host if '://' in host else f'tcp://{host}'
+        ZMQServer.__init__(self, port=port, bind_address=bind_address)
 
     def handle_get_globals(self, raw=False):
         active_groups = inmain(app.get_active_groups, interactive=False)
@@ -3761,7 +3768,24 @@ class RemoteServer(ZMQServer):
             sequence_globals, raise_exceptions=False
         )
         shots = runmanager.expand_globals(sequence_globals, evaled_globals, expansion_order)
-        return shots
+
+        # Keep the zprocess response independent of the NumPy version used by
+        # RunManager and the client. In particular, NumPy 2 serialises module
+        # paths such as ``numpy._core``, which cannot be imported by NumPy 1.x.
+        def to_python(value):
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            if isinstance(value, np.generic):
+                return value.item()
+            if isinstance(value, dict):
+                return {key: to_python(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [to_python(item) for item in value]
+            if isinstance(value, tuple):
+                return tuple(to_python(item) for item in value)
+            return value
+
+        return to_python(shots)
 
     @inmain_decorator()
     def handle_get_labscript_file(self):
